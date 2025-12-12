@@ -3,10 +3,10 @@ import uvicorn
 import sys
 import dotenv
 import json
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict, Any, List
-
 import httpx
+import payload
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Dict, Any, List, Tuple
 from fastapi import FastAPI, HTTPException, status, Request, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -39,16 +39,7 @@ async def lifespan(app: FastAPI):
     await http_client.aclose()
 
 app = FastAPI(lifespan=lifespan)
-security = HTTPBearer()  # 用于处理 Bearer Token
-
-FIXED_PAYLOAD_BASE = {
-    "model": "Gemini-3-Pro",
-    "temperature": 1,
-    "extra_body": {
-        "thinking_level": "high",
-    },
-    "stream": True,
-}
+security = HTTPBearer()  # Bearer Token
 
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -83,8 +74,8 @@ async def ai_proxy(request: Request, token: str = Depends(verify_token)):
         )
 
     # get payload
-    user_messages = extract_messages(body)
-    upstream_payload = build_fixed_payload(user_messages)
+    user_model, user_messages = extract_model_messages(body)
+    upstream_payload = payload.build_fixed_payload(user_model, user_messages)
 
     # stream response
     return StreamingResponse(
@@ -93,21 +84,12 @@ async def ai_proxy(request: Request, token: str = Depends(verify_token)):
     )
 
 
-def extract_messages(body: Dict[str, Any]) -> List[Dict[str, Any]]:
+def extract_model_messages(body: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     messages = body.get("messages")
+    model = str(body.get("model"))
     if not isinstance(messages, list):
         raise HTTPException(status_code=status.HTTP_400_BAD_GATEWAY, detail="'messages' must be a list")
-    return messages
-
-
-def build_fixed_payload(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    # get new dict
-    return {
-        **FIXED_PAYLOAD_BASE,
-        "messages": messages,
-        # independent copy
-        "extra_body": FIXED_PAYLOAD_BASE["extra_body"].copy()
-    }
+    return model, messages
 
 
 async def stream_upstream(payload: Dict[str, Any]) -> AsyncGenerator[bytes, None]:

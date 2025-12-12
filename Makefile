@@ -1,5 +1,5 @@
 # Ensure these targets are not confused with files
-.PHONY: install run clean check-env
+.PHONY: install run
 
 # install dependencies
 install:
