@@ -3,8 +3,8 @@
 
 # install dependencies
 install:
-	. .venv/bin/activate && pip install -r requirement.txt
+	uv pip install -r requirement.txt
 
-# run the server
+# run the server, need to have a venv first
 run:
-	. .venv/bin/activate && python ./main.py
+	./.venv/bin/python ./main.py
